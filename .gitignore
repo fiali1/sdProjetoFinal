@@ -3,3 +3,6 @@
 .idea/
 captures/
 out/
+
+run.bat
+zookeeper.log

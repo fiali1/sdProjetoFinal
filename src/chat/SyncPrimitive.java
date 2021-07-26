@@ -1,12 +1,9 @@
 package chat;
 
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.*;
 
 import java.io.IOException;
-import java.util.Random;
+import java.util.*;
 
 public class SyncPrimitive implements Watcher {
 
@@ -38,14 +35,12 @@ public class SyncPrimitive implements Watcher {
     }
 
     public static void main(String args[]) {
-        if (args[0].equals("qTest"))
-            queueTest(args);
-        else if (args[0].equals("barrier"))
-            barrierTest(args);
-        else if (args[0].equals("lock"))
-            lockTest(args);
-        else
-            System.err.println("Unkonw option");
+        SyncPrimitive syncPrimitive = new SyncPrimitive(args[0]);
+        try {
+            zk.create("/test-", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static void queueTest(String args[]) {
