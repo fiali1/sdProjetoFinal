@@ -8,7 +8,7 @@ import org.apache.zookeeper.data.Stat;
 
 import java.util.List;
 
-public class Leader extends SyncPrimitive {
+public class Leader extends ZooKeeperClient {
     String leader;
     String id; //Id of the leader
     String pathName;

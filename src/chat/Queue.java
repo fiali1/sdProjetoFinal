@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Producer-Consumer queue
  */
-public class Queue extends SyncPrimitive {
+public class Queue extends ZooKeeperClient {
 
     /**
      * Constructor of producer-consumer queue

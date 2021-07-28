@@ -8,7 +8,7 @@ import org.apache.zookeeper.data.Stat;
 
 import java.util.List;
 
-public class Lock extends SyncPrimitive {
+public class Lock extends ZooKeeperClient {
     long wait;
     String pathName;
 
