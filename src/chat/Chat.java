@@ -18,6 +18,7 @@ public class Chat {
     String participantsPath;
     String messagesPath;
     String barrierPath;
+    String leadersPath;
 
     Participant[] participants;
     int currentParticipants;
@@ -38,13 +39,14 @@ public class Chat {
     Chat(int id, String path, Participant[] participants, int currentParticipants, Participant leader, Participant joiningParticipant) {
         this.id = id;
 
-        this.path = path;
-        participantsPath = path + "/participants";
-        messagesPath = path + "/messages";
-		barrierPath = path + "/barrier";
+        this.path                   = path;
+        participantsPath            = path + "/participants";
+        messagesPath                = path + "/messages";
+		barrierPath                 = path + "/barrier";
+		leadersPath                 = path + "/leaders";
 
-        this.participants = participants;
-        this.currentParticipants = currentParticipants;
+        this.participants           = participants;
+        this.currentParticipants    = currentParticipants;
 
         this.self = joiningParticipant;
         this.leader = leader;
@@ -52,7 +54,12 @@ public class Chat {
         try {
             boolean registered = registerParticipant(joiningParticipant);
             System.out.println(registered ? "Chat joined!" : "Couldn't register joining participant!");
-			enterBarrier(participants.length);
+            applyForLeadership();
+            enterBarrier(participants.length);
+
+            // TODO : Debug
+            // runElection();
+
         } catch (InterruptedException | KeeperException e) {
             e.printStackTrace();
         }
@@ -65,16 +72,18 @@ public class Chat {
      * @param leader
      */
     Chat(int participantsCount, Participant leader) {
-        participants = new Participant[participantsCount];
+        participants        = new Participant[participantsCount];
         currentParticipants = 0;
 
         try {
             path = createChatNode();
-            participantsPath = path + "/participants";
-            messagesPath = path + "/messages";
-            barrierPath = path + "/barrier";
+            participantsPath    = path + "/participants";
+            messagesPath        = path + "/messages";
+            barrierPath         = path + "/barrier";
+            leadersPath         = path + "/leaders";
 
             createBarrierNode();
+            createLeaderNode();
             createMessagesNode();
             createParticipantsNode();
 
@@ -92,7 +101,13 @@ public class Chat {
 
             System.out.println(this);
 
-			enterBarrier(participantsCount);
+            // TODO: Leader Election
+            applyForLeadership();
+
+            enterBarrier(participantsCount);
+
+            // TODO : Debug
+            // runElection();
 
         } catch (InterruptedException | KeeperException e) {
             e.printStackTrace();
@@ -127,6 +142,10 @@ public class Chat {
 
     private boolean createMessagesNode() throws InterruptedException, KeeperException {
         return zk.create(messagesPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
+    }
+
+    private boolean createLeaderNode() throws InterruptedException, KeeperException {
+        return zk.create(leadersPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
     }
 
     private boolean registerParticipant(Participant participant) throws InterruptedException, KeeperException {
@@ -171,6 +190,62 @@ public class Chat {
                 }
             }
         }
+    }
+
+    void runElection() throws InterruptedException, KeeperException {
+        while(true) {
+            Thread.sleep(5000L);
+            if (checkLeadership()) {
+                System.out.println();
+
+                List<String> list = zk.getChildren(leadersPath, false);
+                String node = findSmallestNode(list);
+
+                System.out.println("Deleting: " + node);
+
+                zk.delete(leadersPath + "/" + node, 0);
+
+                applyForLeadership();
+            }
+        }
+    }
+
+    void applyForLeadership() throws KeeperException, InterruptedException {
+        zk.create(leadersPath + "/" + self.name + "-", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE,
+                CreateMode.EPHEMERAL_SEQUENTIAL);
+    }
+
+    String findSmallestNode(List<String> list) {
+        String nodeName = "";
+        int suffix      = Integer.MAX_VALUE;
+
+        System.out.println(list);
+
+        for (String node: list) {
+            int index       = node.lastIndexOf("-");
+            int tempSuffix  = Integer.parseInt(node.substring(index + 1));
+
+            if (tempSuffix < suffix) {
+                suffix      = tempSuffix;
+                nodeName    = node;
+            }
+        }
+
+        return nodeName;
+    }
+
+    boolean checkLeadership() throws InterruptedException, KeeperException {
+        List<String> list = zk.getChildren(leadersPath, false);
+
+        String node = findSmallestNode(list);
+
+        int start           = node.lastIndexOf("/");
+        int end             = node.lastIndexOf("-");
+        String nodeName     = node.substring(start + 1, end);
+
+        System.out.println("Novo líder: " + nodeName);
+
+        return (nodeName.equals(self.name));
     }
 
     @Override

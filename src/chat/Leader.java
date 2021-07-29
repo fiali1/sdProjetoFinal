@@ -96,7 +96,6 @@ public class Leader extends ZooKeeperClient {
         }
         System.out.println(pathName+" is waiting for a notification!");
         return false;
-
     }
 
     synchronized public void process(WatchedEvent event) {
