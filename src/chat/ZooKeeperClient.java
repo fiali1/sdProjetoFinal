@@ -51,7 +51,7 @@ public class ZooKeeperClient implements Watcher {
 						int participantsCount = Integer.parseInt(args[2]);
 						
 						Participant leader = new Participant(name);
-						Chat chat = new Chat(participantsCount, leader);
+						Chat chat = new Chat(scanner, participantsCount, leader);
 						System.out.println(chat);
 					}
 					break;
@@ -59,7 +59,7 @@ public class ZooKeeperClient implements Watcher {
 					if (args.length >= 3) {
 						int id = Integer.parseInt(args[1]);
 						String name = args[2].toLowerCase(Locale.ROOT);
-						Chat chat = Chat.fromId(id, name);
+						Chat chat = Chat.fromId(scanner, id, name);
 						System.out.println(chat);
 					}
 					break;
