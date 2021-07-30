@@ -59,6 +59,8 @@ public class Chat {
 			applyForLeadership();
 			enterBarrier(participants.length);
 			
+			participants = reloadParticipants();
+			
 			messageThread = new MessageThread(this);
 			messageThread.start();
 			zk.register(messageThread);
@@ -108,6 +110,8 @@ public class Chat {
 			
 			applyForLeadership();
 			enterBarrier(participantsCount);
+			
+			participants = reloadParticipants();
 			
 			messageThread = new MessageThread(this);
 			messageThread.start();
@@ -222,23 +226,6 @@ public class Chat {
 		          CreateMode.EPHEMERAL_SEQUENTIAL);
 	}
 	
-	String findSmallestNode(List<String> list) {
-		String nodeName = "";
-		int suffix = Integer.MAX_VALUE;
-		
-		for (String node : list) {
-			int index = node.lastIndexOf("-");
-			int tempSuffix = Integer.parseInt(node.substring(index + 1));
-			
-			if (tempSuffix < suffix) {
-				suffix = tempSuffix;
-				nodeName = node;
-			}
-		}
-		
-		return nodeName;
-	}
-	
 	boolean checkLeadership() throws InterruptedException, KeeperException {
 		List<String> list = zk.getChildren(leadersPath, false);
 		
@@ -256,8 +243,6 @@ public class Chat {
 	void writeMessage(Scanner scanner) throws InterruptedException, KeeperException {
 		String message = scanner.nextLine();
 		
-		System.out.println(Arrays.toString(participants));
-		
 		for (Participant participant : participants)
 			zk.create(messagesPath + "/" + participant.name + "/" + self.name + "-", message.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT_SEQUENTIAL);
 	}
@@ -273,6 +258,30 @@ public class Chat {
 			
 			System.out.println("<" + sender + "> " + message);
 		}
+	}
+	
+	Participant[] reloadParticipants() throws InterruptedException, KeeperException {
+		Participant[] currentParticipants = new Participant[participants.length];
+		
+		AtomicInteger i = new AtomicInteger();
+		zk.getChildren(path + "/participants", false)
+		  .stream()
+		  .map(participantPath -> {
+			  participantPath = path + "/participants/" + participantPath;
+			  try {
+				  String name = new String(zk.getData(participantPath + "/name", false, null));
+				  String host = new String(zk.getData(participantPath + "/host", false, null));
+				  int port = ByteBuffer.wrap(zk.getData(participantPath + "/port", false, null)).getInt();
+				
+				  return new Participant(name, host, port);
+			  } catch (KeeperException | InterruptedException e) {
+				  e.printStackTrace();
+				  return null;
+			  }
+		  })
+		  .forEach(participant -> currentParticipants[i.getAndIncrement()] = participant);
+		
+		return currentParticipants;
 	}
 	
 	@Override
@@ -292,6 +301,23 @@ public class Chat {
 	
 	private static boolean checkChatNode(String path) throws InterruptedException, KeeperException {
 		return zk.exists(path, false) != null;
+	}
+	
+	static String findSmallestNode(List<String> list) {
+		String nodeName = "";
+		int suffix = Integer.MAX_VALUE;
+		
+		for (String node : list) {
+			int index = node.lastIndexOf("-");
+			int tempSuffix = Integer.parseInt(node.substring(index + 1));
+			
+			if (tempSuffix < suffix) {
+				suffix = tempSuffix;
+				nodeName = node;
+			}
+		}
+		
+		return nodeName;
 	}
 	
 	static Chat fromId(Scanner scanner, int id, String joiningName) throws InterruptedException, KeeperException {

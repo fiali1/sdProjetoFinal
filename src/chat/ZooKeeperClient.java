@@ -52,7 +52,7 @@ public class ZooKeeperClient implements Watcher {
 						
 						Participant leader = new Participant(name);
 						Chat chat = new Chat(scanner, participantsCount, leader);
-						System.out.println(chat);
+						while (true) ;
 					}
 					break;
 				case "join":
@@ -60,7 +60,7 @@ public class ZooKeeperClient implements Watcher {
 						int id = Integer.parseInt(args[1]);
 						String name = args[2].toLowerCase(Locale.ROOT);
 						Chat chat = Chat.fromId(scanner, id, name);
-						System.out.println(chat);
+						while (true) ;
 					}
 					break;
 				default:
