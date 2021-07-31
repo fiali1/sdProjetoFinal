@@ -26,8 +26,7 @@ public class Chat {
 	Participant leader;
 	Participant self;
 	
-	MessageThread messageThread;
-	LeaderThread leaderThread;
+	ProcessesThread processesThread;
 	
 	/**
 	 * Join constructor
@@ -62,13 +61,9 @@ public class Chat {
 			
 			this.participants = reloadParticipants();
 			
-			messageThread = new MessageThread(this);
-			messageThread.start();
-			zk.register(messageThread);
-
-			leaderThread = new LeaderThread(this, scanner);
-			leaderThread.start();
-			zk.register(leaderThread);
+			processesThread = new ProcessesThread(this, scanner);
+			processesThread.start();
+			zk.register(processesThread);
 			
 			// TODO: Leader Election
 			// runElection();
@@ -117,14 +112,10 @@ public class Chat {
 			enterBarrier(participantsCount);
 			
 			participants = reloadParticipants();
-			
-			messageThread = new MessageThread(this);
-			messageThread.start();
-			zk.register(messageThread);
 
-			leaderThread = new LeaderThread(this, scanner);
-			leaderThread.start();
-			zk.register(leaderThread);
+			processesThread = new ProcessesThread(this, scanner);
+			processesThread.start();
+			zk.register(processesThread);
 			
 			writeMessage(scanner);
 			
@@ -251,7 +242,7 @@ public class Chat {
 
 		String message = scanner.nextLine();
 
-		System.out.println(Arrays.toString(participants));
+//		System.out.println(Arrays.toString(participants));
 
 		for (Participant participant : participants)
 			zk.create(messagesPath + "/" + participant.name + "/" + self.name + "-", message.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT_SEQUENTIAL);
