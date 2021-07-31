@@ -27,6 +27,7 @@ public class Chat {
 	Participant self;
 	
 	MessageThread messageThread;
+	LeaderThread leaderThread;
 	
 	/**
 	 * Join constructor
@@ -59,11 +60,15 @@ public class Chat {
 			applyForLeadership();
 			enterBarrier(participants.length);
 			
-			participants = reloadParticipants();
+			this.participants = reloadParticipants();
 			
 			messageThread = new MessageThread(this);
 			messageThread.start();
 			zk.register(messageThread);
+
+			leaderThread = new LeaderThread(this, scanner);
+			leaderThread.start();
+			zk.register(leaderThread);
 			
 			// TODO: Leader Election
 			// runElection();
@@ -116,6 +121,10 @@ public class Chat {
 			messageThread = new MessageThread(this);
 			messageThread.start();
 			zk.register(messageThread);
+
+			leaderThread = new LeaderThread(this, scanner);
+			leaderThread.start();
+			zk.register(leaderThread);
 			
 			writeMessage(scanner);
 			
@@ -204,21 +213,14 @@ public class Chat {
 	}
 	
 	void runElection() throws InterruptedException, KeeperException {
-		while (true) {
-			Thread.sleep(5000L);
-			if (checkLeadership()) {
-				System.out.println();
-				
-				List<String> list = zk.getChildren(leadersPath, false);
-				String node = findSmallestNode(list);
-				
-				System.out.println("Deleting: " + node);
-				
-				zk.delete(leadersPath + "/" + node, 0);
-				
-				applyForLeadership();
-			}
-		}
+		List<String> list = zk.getChildren(leadersPath, false);
+		String node = findSmallestNode(list);
+
+//		System.out.println("Deleting: " + node);
+
+		zk.delete(leadersPath + "/" + node, 0);
+
+		applyForLeadership();
 	}
 	
 	void applyForLeadership() throws KeeperException, InterruptedException {
@@ -235,16 +237,26 @@ public class Chat {
 		int end = node.lastIndexOf("-");
 		String nodeName = node.substring(start + 1, end);
 		
-		System.out.println("Novo líder: " + nodeName);
+//		System.out.println("Novo líder: " + nodeName);
+
+//		if (nodeName.contains(self.name)){
+//			System.out.println("I am the new leader!");
+//		}
 		
 		return (nodeName.equals(self.name));
 	}
 	
 	void writeMessage(Scanner scanner) throws InterruptedException, KeeperException {
+		System.out.println("Insert your message:");
+
 		String message = scanner.nextLine();
-		
+
+		System.out.println(Arrays.toString(participants));
+
 		for (Participant participant : participants)
 			zk.create(messagesPath + "/" + participant.name + "/" + self.name + "-", message.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT_SEQUENTIAL);
+
+		runElection();
 	}
 	
 	void processMessage() throws InterruptedException, KeeperException {

@@ -29,6 +29,9 @@ public class ZooKeeperClient implements Watcher {
 	}
 	
 	synchronized public void process(WatchedEvent event) {
+
+		System.out.println("Zk client PROCESS");
+
 		synchronized (mutex) {
 			//System.out.println("Process: " + event.getType());
 			mutex.notify();
