@@ -4,6 +4,7 @@ import org.apache.zookeeper.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class ZooKeeperClient implements Watcher {
 	
@@ -44,14 +45,21 @@ public class ZooKeeperClient implements Watcher {
 			ZooKeeperClient zooKeeperClient = new ZooKeeperClient(zookeeperAddress);
 			
 			Scanner scanner = new Scanner(System.in);
+
+			// TODO: Remove zookeeper logs
+			TimeUnit.SECONDS.sleep(1);
+			System.out.println("new amount name | join roomId name");
+
 			args = scanner.nextLine().split(" ");
-			
+
+
 			String command = args[0].toLowerCase(Locale.ROOT);
 			switch (command) {
 				case "new":
 					if (args.length >= 3) {
-						String name = args[1].toLowerCase(Locale.ROOT);
-						int participantsCount = Integer.parseInt(args[2]);
+						int participantsCount = Integer.parseInt(args[1]);
+						String name = args[2].toLowerCase(Locale.ROOT);
+
 						
 						Participant leader = new Participant(name);
 						Chat chat = new Chat(scanner, participantsCount, leader);

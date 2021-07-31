@@ -106,7 +106,7 @@ public class Chat {
 			
 			System.out.println("ID: " + id);
 			
-			System.out.println(this);
+//			System.out.println(this);
 			
 			applyForLeadership();
 			enterBarrier(participantsCount);
@@ -183,15 +183,17 @@ public class Chat {
 	}
 	
 	private void enterBarrier(int participantsCount) throws InterruptedException, KeeperException {
-		zk.create(barrierPath + "/" + self.name, new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
+		zk.create(barrierPath + "/" + self.name + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
 		
 		// Listen to new participants joining barrier
 		while (true) {
 			synchronized (mutex) {
 				List<String> barrierParticipants = zk.getChildren(barrierPath, true);
-				
-				// TODO: Print participant that just joined/entered
-				System.out.println(barrierParticipants.size());
+
+				String rawNewParticipant = barrierParticipants.get(barrierParticipants.size() - 1);
+				String newParticipant = rawNewParticipant.substring(0, rawNewParticipant.lastIndexOf("-"));
+
+				System.out.println(newParticipant + " just joined! (" + barrierParticipants.size() + "/" + participantsCount + ")");
 				
 				if (barrierParticipants.size() < participantsCount) {
 					mutex.wait();
