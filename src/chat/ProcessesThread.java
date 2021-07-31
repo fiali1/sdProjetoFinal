@@ -27,6 +27,9 @@ public class ProcessesThread extends Thread implements Watcher {
 
             // Message Watcher
             zk.getChildren(chat.messagesPath + "/" + chat.self.name, true);
+
+            // Lock Watcher
+            zk.getChildren(chat.locksPath, true);
         } catch (InterruptedException | KeeperException e) {
             e.printStackTrace();
         }
@@ -35,18 +38,17 @@ public class ProcessesThread extends Thread implements Watcher {
     @Override
     public void process(WatchedEvent event) {
         try {
+//            System.out.println("event path: " + event.getPath());
             if (event.getPath().startsWith(chat.leadersPath)) {
 //                System.out.println("Leader process: " + event);
-
                 processElection();
             } else if (event.getPath().startsWith(chat.messagesPath)) {
-
 //                System.out.println("Message process: " + event);
-//                System.out.println("event path: " + event.getPath());
-//                System.out.println("chat messages path: " + chat.messagesPath);
-//                System.out.println("class: " + getClass().getSimpleName());
-
                 processMessage();
+            } else if (event.getPath().startsWith(chat.locksPath)) {
+//                System.out.println("Lock process: " + event);
+
+                processLock();
             } else {
 //                System.out.println("Exception process: " + event);
 
@@ -55,6 +57,9 @@ public class ProcessesThread extends Thread implements Watcher {
 
                 // Messages Watcher
                 zk.getChildren(chat.messagesPath + "/" + chat.self.name, true);
+
+                // Locks Watcher
+                zk.getChildren(chat.locksPath, true);
             }
         } catch (InterruptedException | KeeperException e) {
             e.printStackTrace();
@@ -68,14 +73,14 @@ public class ProcessesThread extends Thread implements Watcher {
 
         if (!smallestNode.equals("")) {
 
-            if(chat.checkLeadership()) {
-                chat.writeMessage(scanner);
+            if (chat.checkLeadership() && !chat.checkPreviousLock()) {
+                chat.createLock();
             }
         }
     }
 
     void processMessage() throws InterruptedException, KeeperException {
-//        System.out.println(chat.self.name + " PROCESS MESSAGE");
+//      System.out.println(chat.self.name + " PROCESS MESSAGE");
 
         String participantMessagesPath = chat.messagesPath + "/" + chat.self.name;
         List<String> children = zk.getChildren(participantMessagesPath, false);
@@ -89,6 +94,19 @@ public class ProcessesThread extends Thread implements Watcher {
 
             zk.delete(participantMessagesPath + "/" + smallestNode, -1);
             zk.getChildren(participantMessagesPath, true);
+        }
+    }
+
+    void processLock() throws InterruptedException, KeeperException {
+        String locksPath = chat.locksPath;
+        List<String> locks = zk.getChildren(locksPath, true);
+        String smallestNode = Chat.findSmallestNode(locks);
+
+        if (!smallestNode.equals("")) {
+
+            if(chat.checkLock()) {
+                chat.writeMessage(scanner);
+            }
         }
     }
 }
