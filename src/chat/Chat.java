@@ -199,11 +199,20 @@ public class Chat {
 		while (true) {
 			synchronized (mutex) {
 				List<String> barrierParticipants = zk.getChildren(barrierPath, true);
-
-				String rawNewParticipant = barrierParticipants.get(barrierParticipants.size() - 1);
-				String newParticipant = rawNewParticipant.substring(0, rawNewParticipant.lastIndexOf("-"));
-
-				System.out.println(newParticipant + " just joined! (" + barrierParticipants.size() + "/" + participantsCount + ")");
+				
+				String newestParticipant = "";
+				int suffix = Integer.MIN_VALUE;
+				
+				for (String node : barrierParticipants) {
+					int tempIndex = node.lastIndexOf("-");
+					int tempSuffix = Integer.parseInt(node.substring(tempIndex + 1));
+					
+					if (tempSuffix > suffix) {
+						suffix = tempSuffix;
+						newestParticipant = node.substring(0, tempIndex);
+					}
+				}
+				System.out.println(newestParticipant + " just joined! (" + barrierParticipants.size() + "/" + participantsCount + ")");
 				
 				if (barrierParticipants.size() < participantsCount) {
 					mutex.wait();
