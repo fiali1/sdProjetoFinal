@@ -59,8 +59,8 @@ public class Chat {
 			boolean registered = registerParticipant(joiningParticipant);
 			System.out.println(registered ? "Chat joined!" : "Couldn't register joining participant!");
 			applyForLeadership();
-			enterBarrier(participants.length);
 			createLock();
+			enterBarrier(participants.length);
 			
 			this.participants = reloadParticipants();
 			
@@ -114,8 +114,8 @@ public class Chat {
 //			System.out.println(this);
 			
 			applyForLeadership();
-			enterBarrier(participantsCount);
 			createLock();
+			enterBarrier(participantsCount);
 			
 			participants = reloadParticipants();
 
@@ -288,7 +288,7 @@ public class Chat {
 		int nodeSuffix = Integer.parseInt(node.substring(end + 1));
 
 		for (String lockNode : list) {
-			int tempEnd = node.lastIndexOf("-");
+			int tempEnd = lockNode.lastIndexOf("-");
 			int tempSuffix = Integer.parseInt(lockNode.substring(tempEnd + 1));
 
 			if (tempSuffix > max && tempSuffix < nodeSuffix) {
