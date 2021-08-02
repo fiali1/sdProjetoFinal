@@ -2,8 +2,6 @@ package chat;
 
 import org.apache.zookeeper.*;
 
-import java.util.*;
-
 import static chat.ZooKeeperClient.*;
 
 public class ProcessesThread extends Thread implements Watcher {
@@ -24,7 +22,7 @@ public class ProcessesThread extends Thread implements Watcher {
 			zk.getChildren(chat.chatLocks.locksPath, true);
 			
 			// Message Watcher
-			zk.getChildren(chat.chatQueues.messagesPath + "/" + chat.self.name, true);
+			zk.getChildren(chat.chatQueues.messagesPath + "/" + chat.self, true);
 		} catch (InterruptedException | KeeperException e) {
 			e.printStackTrace();
 		}
@@ -44,7 +42,7 @@ public class ProcessesThread extends Thread implements Watcher {
 				zk.getChildren(chat.chatLocks.locksPath, true);
 				
 				// Messages Watcher
-				zk.getChildren(chat.chatQueues.messagesPath + "/" + chat.self.name, true);
+				zk.getChildren(chat.chatQueues.messagesPath + "/" + chat.self, true);
 			}
 		} catch (InterruptedException | KeeperException e) {
 			e.printStackTrace();

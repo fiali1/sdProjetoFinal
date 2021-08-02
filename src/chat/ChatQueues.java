@@ -29,8 +29,8 @@ public class ChatQueues {
 		
 		String message = scanner.nextLine();
 		
-		for (Participant participant : chat.participants) {
-			String messagePath = messagesPath + "/" + participant.name + "/" + chat.self.name + "-";
+		for (String participant : chat.participants) {
+			String messagePath = messagesPath + "/" + participant + "/" + chat.self + "-";
 			zk.create(messagePath, message.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT_SEQUENTIAL);
 		}
 		
@@ -39,7 +39,7 @@ public class ChatQueues {
 	}
 	
 	void processMessage() throws InterruptedException, KeeperException {
-		String participantMessagesPath = messagesPath + "/" + chat.self.name;
+		String participantMessagesPath = messagesPath + "/" + chat.self;
 		List<String> children = zk.getChildren(participantMessagesPath, false);
 		String smallestNode = Chat.findSmallestNode(children);
 		

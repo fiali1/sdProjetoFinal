@@ -24,11 +24,11 @@ public class ChatLocks {
 	
 	boolean checkPreviousLock() throws InterruptedException, KeeperException {
 		List<String> list = zk.getChildren(locksPath, false);
-		return list.stream().anyMatch(node -> node.startsWith(chat.self.name));
+		return list.stream().anyMatch(node -> node.startsWith(chat.self));
 	}
 	
 	void createLock() throws KeeperException, InterruptedException {
-		zk.create(locksPath + "/" + chat.self.name + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
+		zk.create(locksPath + "/" + chat.self + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
 	}
 	
 	boolean checkLock() throws InterruptedException, KeeperException {
@@ -39,7 +39,7 @@ public class ChatLocks {
 		int end = node.lastIndexOf("-");
 		String nodeName = node.substring(start + 1, end);
 		
-		if (nodeName.equals(chat.self.name)) return true;
+		if (nodeName.equals(chat.self)) return true;
 		
 		int max = Integer.MIN_VALUE;
 		String maxNode = "";

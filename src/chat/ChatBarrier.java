@@ -23,7 +23,7 @@ public class ChatBarrier {
 	}
 	
 	void enterBarrier(int participantsCount) throws InterruptedException, KeeperException {
-		zk.create(barrierPath + "/" + chat.self.name + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
+		zk.create(barrierPath + "/" + chat.self + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
 		
 		// Listen to new participants joining barrier
 		while (true) {

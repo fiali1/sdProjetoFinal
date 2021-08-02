@@ -2,7 +2,6 @@ package chat;
 
 import org.apache.zookeeper.*;
 
-import java.nio.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
 
@@ -23,19 +22,19 @@ public class Chat {
 	ChatLocks chatLocks;
 	ChatQueues chatQueues;
 	
-	Participant[] participants;
-	Participant self;
+	String[] participants;
+	String self;
 	
 	ProcessesThread processesThread;
 	
 	/**
 	 * Constructor for first participant
 	 */
-	Chat(Scanner scanner, int participantsCount, Participant self) {
+	Chat(Scanner scanner, int participantsCount, String self) {
 		try {
 			path = createChatNode();
 			
-			participants = new Participant[participantsCount];
+			participants = new String[participantsCount];
 			participantsPath = path + "/participants";
 			createParticipantsNode();
 			
@@ -67,11 +66,11 @@ public class Chat {
 	/**
 	 * Constructor for joining participant
 	 */
-	Chat(Scanner scanner, int id, String path, int participantsCount, Participant self) {
+	Chat(Scanner scanner, int id, String path, int participantsCount, String self) {
 		this.id = id;
 		this.path = path;
 		
-		participants = new Participant[participantsCount];
+		participants = new String[participantsCount];
 		participantsPath = path + "/participants";
 		
 		chatQueues = new ChatQueues(this, scanner, path + "/messages");
@@ -114,18 +113,16 @@ public class Chat {
 		zk.create(participantsPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
 	}
 	
-	private void registerParticipant(Participant participant) throws InterruptedException, KeeperException {
-		String participantPath = participantsPath + "/" + participant.name;
+	private void registerParticipant(String participant) throws InterruptedException, KeeperException {
+		String participantPath = participantsPath + "/" + participant;
 		zk.create(participantPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
-		zk.create(participantPath + "/name", participant.name.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT);
-		zk.create(participantPath + "/host", participant.host.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT);
-		zk.create(participantPath + "/port", intToByteArray(participant.port), OPEN_ACL_UNSAFE, PERSISTENT);
+		zk.create(participantPath + "/name", participant.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT);
 		
-		zk.create(chatQueues.messagesPath + "/" + participant.name, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
+		zk.create(chatQueues.messagesPath + "/" + participant, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
 	}
 	
-	Participant[] reloadParticipants() throws InterruptedException, KeeperException {
-		Participant[] currentParticipants = new Participant[participants.length];
+	String[] reloadParticipants() throws InterruptedException, KeeperException {
+		String[] currentParticipants = new String[participants.length];
 		
 		AtomicInteger i = new AtomicInteger();
 		zk.getChildren(path + "/participants", false)
@@ -133,11 +130,7 @@ public class Chat {
 		  .map(participantPath -> {
 			  participantPath = path + "/participants/" + participantPath;
 			  try {
-				  String name = new String(zk.getData(participantPath + "/name", false, null));
-				  String host = new String(zk.getData(participantPath + "/host", false, null));
-				  int port = byteArrayToInt(zk.getData(participantPath + "/port", false, null));
-				
-				  return new Participant(name, host, port);
+				  return new String(zk.getData(participantPath + "/name", false, null));
 			  } catch (KeeperException | InterruptedException e) {
 				  e.printStackTrace();
 				  return null;
@@ -200,7 +193,7 @@ public class Chat {
 		String path = chatPath(id);
 		if (checkChatNode(path)) {
 			int participantsCount = byteArrayToInt(zk.getData(path + "/participantsCount", false, null));
-			return new Chat(scanner, id, path, participantsCount, new Participant(joiningName));
+			return new Chat(scanner, id, path, participantsCount, joiningName);
 		} else {
 			System.out.println("Não há um chat com o id " + id + "!");
 			Runtime.getRuntime().exit(0);

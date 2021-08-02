@@ -31,7 +31,7 @@ public class ChatLeaders {
 	}
 	
 	void applyForLeadership() throws KeeperException, InterruptedException {
-		zk.create(leadersPath + "/" + chat.self.name + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
+		zk.create(leadersPath + "/" + chat.self + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
 	}
 	
 	boolean checkLeadership() throws InterruptedException, KeeperException {
@@ -42,7 +42,7 @@ public class ChatLeaders {
 		int end = node.lastIndexOf("-");
 		String nodeName = node.substring(start + 1, end);
 		
-		return (nodeName.equals(chat.self.name));
+		return (nodeName.equals(chat.self));
 	}
 	
 	void processElection() throws InterruptedException, KeeperException {

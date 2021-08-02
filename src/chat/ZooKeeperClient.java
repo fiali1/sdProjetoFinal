@@ -4,7 +4,7 @@ import org.apache.zookeeper.*;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class ZooKeeperClient implements Watcher {
 	
@@ -36,27 +36,21 @@ public class ZooKeeperClient implements Watcher {
 	public static void main(String[] args) throws InterruptedException, KeeperException {
 		if (args.length >= 1) {
 			String zookeeperAddress = args[0];
-			ZooKeeperClient zooKeeperClient = new ZooKeeperClient(zookeeperAddress);
+			new ZooKeeperClient(zookeeperAddress);
 			
-			Scanner scanner = new Scanner(System.in);
-
-			// TODO: Remove zookeeper logs
 			TimeUnit.SECONDS.sleep(1);
 			System.out.println("new amount name | join roomId name");
-
+			
+			Scanner scanner = new Scanner(System.in);
 			args = scanner.nextLine().split(" ");
-
-
+			
 			String command = args[0].toLowerCase(Locale.ROOT);
 			switch (command) {
 				case "new":
 					if (args.length >= 3) {
 						int participantsCount = Integer.parseInt(args[1]);
 						String name = args[2].toLowerCase(Locale.ROOT);
-
-						
-						Participant leader = new Participant(name);
-						Chat chat = new Chat(scanner, participantsCount, leader);
+						new Chat(scanner, participantsCount, name);
 						while (true) ;
 					}
 					break;
@@ -64,7 +58,7 @@ public class ZooKeeperClient implements Watcher {
 					if (args.length >= 3) {
 						int id = Integer.parseInt(args[1]);
 						String name = args[2].toLowerCase(Locale.ROOT);
-						Chat chat = Chat.fromId(scanner, id, name);
+						Chat.fromId(scanner, id, name);
 						while (true) ;
 					}
 					break;
