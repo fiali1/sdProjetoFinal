@@ -6,6 +6,7 @@ import java.nio.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
 
+import static chat.Util.*;
 import static chat.ZooKeeperClient.*;
 import static org.apache.zookeeper.CreateMode.*;
 import static org.apache.zookeeper.ZooDefs.Ids.*;
@@ -16,120 +17,87 @@ public class Chat {
 	
 	String path;
 	String participantsPath;
-	String messagesPath;
-	String barrierPath;
-	String leadersPath;
-	String locksPath;
+	
+	ChatBarrier chatBarrier;
+	ChatLeaders chatLeaders;
+	ChatLocks chatLocks;
+	ChatQueues chatQueues;
 	
 	Participant[] participants;
-	int currentParticipants;
-	
-	Participant leader;
 	Participant self;
 	
 	ProcessesThread processesThread;
 	
 	/**
-	 * Join constructor
-	 *
-	 * @param id
-	 * @param path
-	 * @param participants
-	 * @param currentParticipants
-	 * @param leader
-	 * @param joiningParticipant
+	 * Constructor for first participant
 	 */
-	Chat(Scanner scanner, int id, String path, Participant[] participants, int currentParticipants, Participant leader, Participant joiningParticipant) {
-		this.id = id;
-		
-		this.path = path;
-		participantsPath = path + "/participants";
-		messagesPath = path + "/messages";
-		barrierPath = path + "/barrier";
-		leadersPath = path + "/leaders";
-		locksPath = path + "/locks";
-		
-		this.participants = participants;
-		this.currentParticipants = currentParticipants;
-		
-		this.self = joiningParticipant;
-		this.leader = leader;
-		
+	Chat(Scanner scanner, int participantsCount, Participant self) {
 		try {
-			boolean registered = registerParticipant(joiningParticipant);
-			System.out.println(registered ? "Chat joined!" : "Couldn't register joining participant!");
-			applyForLeadership();
-			createLock();
-			enterBarrier(participants.length);
+			path = createChatNode();
 			
-			this.participants = reloadParticipants();
+			participants = new Participant[participantsCount];
+			participantsPath = path + "/participants";
+			createParticipantsNode();
 			
-			processesThread = new ProcessesThread(this, scanner);
-			processesThread.start();
-			zk.register(processesThread);
+			chatQueues = new ChatQueues(this, scanner, path + "/messages");
+			chatQueues.createMessagesNode();
 			
-			// TODO: Leader Election
-			// runElection();
+			id = Integer.parseInt(path.substring(path.lastIndexOf("-") + 1));
+			
+			registerParticipantsCount(participantsCount);
+			
+			this.self = self;
+			registerParticipant(self);
+			
+			System.out.println("Chat joined!");
+			System.out.println("ID: " + id);
+			
+			registerFeatures(true);
+			
+			participants = reloadParticipants();
+			
+			startProcessesThread();
+			
+			chatQueues.writeMessage();
 		} catch (InterruptedException | KeeperException e) {
 			e.printStackTrace();
 		}
 	}
 	
 	/**
-	 * New constructor
-	 *
-	 * @param participantsCount
-	 * @param leader
+	 * Constructor for joining participant
 	 */
-	Chat(Scanner scanner, int participantsCount, Participant leader) {
+	Chat(Scanner scanner, int id, String path, int participantsCount, Participant self) {
+		this.id = id;
+		this.path = path;
+		
 		participants = new Participant[participantsCount];
-		currentParticipants = 0;
-
+		participantsPath = path + "/participants";
+		
+		chatQueues = new ChatQueues(this, scanner, path + "/messages");
+		
 		try {
-			path = createChatNode();
-			participantsPath = path + "/participants";
-			messagesPath = path + "/messages";
-			barrierPath = path + "/barrier";
-			leadersPath = path + "/leaders";
-			locksPath = path + "/locks";
+			this.self = self;
+			registerParticipant(self);
 			
-			createBarrierNode();
-			createLeaderNode();
-			createMessagesNode();
-			createParticipantsNode();
-			createLockNode();
+			System.out.println("Chat joined!");
 			
-			id = Integer.parseInt(path.substring(path.lastIndexOf("-") + 1));
+			registerFeatures(false);
 			
-			this.self = leader;
-			this.leader = leader;
+			this.participants = reloadParticipants();
 			
-			registerParticipantsCount(participantsCount);
-			boolean registered = registerParticipant(leader);
-			
-			System.out.println(registered ? "Chat created!" : "Couldn't register leader!");
-			
-			System.out.println("ID: " + id);
-			
-//			System.out.println(this);
-			
-			applyForLeadership();
-			createLock();
-			enterBarrier(participantsCount);
-			
-			participants = reloadParticipants();
-
-			processesThread = new ProcessesThread(this, scanner);
-			processesThread.start();
-			zk.register(processesThread);
-			
-			writeMessage(scanner);
-			
-			// TODO: Leader Election
-			// runElection();
+			startProcessesThread();
 		} catch (InterruptedException | KeeperException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	private boolean checkRootChatNode() throws InterruptedException, KeeperException {
+		return zk.exists("/chats", false) != null;
+	}
+	
+	private void createRootChatNode() throws InterruptedException, KeeperException {
+		zk.create("/chats", new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
 	}
 	
 	private String createChatNode() throws InterruptedException, KeeperException {
@@ -138,221 +106,22 @@ public class Chat {
 		return zk.create("/chats/chat-", new byte[0], OPEN_ACL_UNSAFE, PERSISTENT_SEQUENTIAL);
 	}
 	
-	private boolean createBarrierNode() throws InterruptedException, KeeperException {
-		return zk.create(barrierPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
+	private void registerParticipantsCount(int participantsCount) throws InterruptedException, KeeperException {
+		zk.create(path + "/participantsCount", intToByteArray(participantsCount), OPEN_ACL_UNSAFE, PERSISTENT);
 	}
 	
-	private boolean checkRootChatNode() throws InterruptedException, KeeperException {
-		return zk.exists("/chats", false) != null;
+	private void createParticipantsNode() throws InterruptedException, KeeperException {
+		zk.create(participantsPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
 	}
 	
-	private boolean createRootChatNode() throws InterruptedException, KeeperException {
-		return zk.create("/chats", new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-	}
-	
-	private boolean registerParticipantsCount(int participantsCount) throws InterruptedException, KeeperException {
-		return zk.create(path + "/participantsCount", ByteBuffer.allocate(4).putInt(participantsCount).array(), OPEN_ACL_UNSAFE, PERSISTENT) != null;
-	}
-	
-	private boolean createParticipantsNode() throws InterruptedException, KeeperException {
-		return zk.create(participantsPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-	}
-	
-	private boolean createMessagesNode() throws InterruptedException, KeeperException {
-		return zk.create(messagesPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-	}
-	
-	private boolean createLeaderNode() throws InterruptedException, KeeperException {
-		return zk.create(leadersPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-	}
-
-	private boolean createLockNode() throws InterruptedException, KeeperException {
-		return zk.create(locksPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-	}
-	
-	private boolean registerParticipant(Participant participant) throws InterruptedException, KeeperException {
-		boolean participantCreated = zk.create(participantsPath + "/" + participant.name, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-		
+	private void registerParticipant(Participant participant) throws InterruptedException, KeeperException {
 		String participantPath = participantsPath + "/" + participant.name;
-		boolean nameCreated = zk.create(participantPath + "/name", participant.name.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT) != null;
-		boolean hostCreated = zk.create(participantPath + "/host", participant.host.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT) != null;
-		boolean portCreated = zk.create(participantPath + "/port", ByteBuffer.allocate(4).putInt(participant.port).array(), OPEN_ACL_UNSAFE, PERSISTENT) != null;
+		zk.create(participantPath, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
+		zk.create(participantPath + "/name", participant.name.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT);
+		zk.create(participantPath + "/host", participant.host.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT);
+		zk.create(participantPath + "/port", intToByteArray(participant.port), OPEN_ACL_UNSAFE, PERSISTENT);
 		
-		boolean messagesCreated = zk.create(messagesPath + "/" + participant.name, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT) != null;
-		
-		if (
-				participantCreated
-						&& nameCreated
-						&& hostCreated
-						&& portCreated
-						&& messagesCreated
-		) {
-			participants[currentParticipants++] = participant;
-			return true;
-		} else return false;
-	}
-	
-	private void enterBarrier(int participantsCount) throws InterruptedException, KeeperException {
-		zk.create(barrierPath + "/" + self.name + "-", new byte[0], OPEN_ACL_UNSAFE, EPHEMERAL_SEQUENTIAL);
-		
-		// Listen to new participants joining barrier
-		while (true) {
-			synchronized (mutex) {
-				List<String> barrierParticipants = zk.getChildren(barrierPath, true);
-				
-				String newestParticipant = "";
-				int suffix = Integer.MIN_VALUE;
-				
-				for (String node : barrierParticipants) {
-					int tempIndex = node.lastIndexOf("-");
-					int tempSuffix = Integer.parseInt(node.substring(tempIndex + 1));
-					
-					if (tempSuffix > suffix) {
-						suffix = tempSuffix;
-						newestParticipant = node.substring(0, tempIndex);
-					}
-				}
-				System.out.println(newestParticipant + " just joined! (" + barrierParticipants.size() + "/" + participantsCount + ")");
-				
-				if (barrierParticipants.size() < participantsCount) {
-					mutex.wait();
-				} else {
-					System.out.println("All participants have joined!");
-					return;
-				}
-			}
-		}
-	}
-	
-	void runElection() throws InterruptedException, KeeperException {
-		List<String> list = zk.getChildren(leadersPath, false);
-		String node = findSmallestNode(list);
-
-//		System.out.println("Deleting: " + node);
-
-		zk.delete(leadersPath + "/" + node, 0);
-
-		applyForLeadership();
-	}
-
-	void releaseLock() throws InterruptedException, KeeperException {
-		List<String> list = zk.getChildren(locksPath, false);
-		String node = findSmallestNode(list);
-
-//		System.out.println("Deleting: " + node);
-
-		zk.delete(locksPath + "/" + node, 0);
-	}
-
-	void applyForLeadership() throws KeeperException, InterruptedException {
-		zk.create(leadersPath + "/" + self.name + "-", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE,
-		          CreateMode.EPHEMERAL_SEQUENTIAL);
-	}
-
-	void createLock() throws KeeperException, InterruptedException {
-		zk.create(locksPath + "/" + self.name + "-", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE,
-				CreateMode.EPHEMERAL_SEQUENTIAL);
-	}
-	
-	boolean checkLeadership() throws InterruptedException, KeeperException {
-		List<String> list = zk.getChildren(leadersPath, false);
-		
-		String node = findSmallestNode(list);
-		
-		int start = node.lastIndexOf("/");
-		int end = node.lastIndexOf("-");
-		String nodeName = node.substring(start + 1, end);
-		
-//		System.out.println("Novo líder: " + nodeName);
-
-//		if (nodeName.contains(self.name)){
-//			System.out.println("I am the new leader!");
-//		}
-		
-		return (nodeName.equals(self.name));
-	}
-
-	boolean checkLock() throws InterruptedException, KeeperException {
-		List<String> list = zk.getChildren(locksPath, false);
-
-		String node = findSmallestNode(list);
-		int start = node.lastIndexOf("/");
-		int end = node.lastIndexOf("-");
-		String nodeName = node.substring(start + 1, end);
-
-//		System.out.println("Novo líder: " + nodeName);
-
-//		if (nodeName.contains(self.name)){
-//			System.out.println("I am the new leader!");
-//		}
-
-		if (nodeName.equals(self.name)) {
-//			System.out.println("Lock acquired for " + self.name + "!");
-			return true;
-		}
-
-		int max = Integer.MIN_VALUE;
-		String maxNode = "";
-
-		int nodeSuffix = Integer.parseInt(node.substring(end + 1));
-
-		for (String lockNode : list) {
-			int tempEnd = lockNode.lastIndexOf("-");
-			int tempSuffix = Integer.parseInt(lockNode.substring(tempEnd + 1));
-
-			if (tempSuffix > max && tempSuffix < nodeSuffix) {
-				max = tempSuffix;
-				maxNode = lockNode;
-			}
-		}
-
-		if (!maxNode.equals(""))
-			zk.exists(locksPath + "/" + maxNode, processesThread);
-//		System.out.println("Watching " + locksPath + "/" + maxNode);
-
-//		System.out.println(self.name + " is waiting for a notification!");
-		return false;
-	}
-
-	boolean checkPreviousLock() throws InterruptedException, KeeperException {
-		List<String> list = zk.getChildren(locksPath, false);
-
-		for (String node : list) {
-			if (node.startsWith(self.name)) {
-//				System.out.println("Found a lock! -> " + node);
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	void writeMessage(Scanner scanner) throws InterruptedException, KeeperException {
-		System.out.println("Insert your message:");
-
-
-		String message = scanner.nextLine();
-
-//		System.out.println(Arrays.toString(participants));
-
-		for (Participant participant : participants)
-			zk.create(messagesPath + "/" + participant.name + "/" + self.name + "-", message.getBytes(), OPEN_ACL_UNSAFE, PERSISTENT_SEQUENTIAL);
-
-		releaseLock();
-		runElection();
-	}
-	
-	void processMessage() throws InterruptedException, KeeperException {
-		String participantMessagesPath = messagesPath + "/" + self.name;
-		List<String> children = zk.getChildren(participantMessagesPath, true);
-		String smallestNode = findSmallestNode(children);
-		
-		if (!smallestNode.equals("")) {
-			String sender = smallestNode.substring(smallestNode.lastIndexOf("-"));
-			String message = new String(zk.getData(participantMessagesPath + "/" + smallestNode, false, null));
-			
-			System.out.println("<" + sender + "> " + message);
-		}
+		zk.create(chatQueues.messagesPath + "/" + participant.name, new byte[0], OPEN_ACL_UNSAFE, PERSISTENT);
 	}
 	
 	Participant[] reloadParticipants() throws InterruptedException, KeeperException {
@@ -366,7 +135,7 @@ public class Chat {
 			  try {
 				  String name = new String(zk.getData(participantPath + "/name", false, null));
 				  String host = new String(zk.getData(participantPath + "/host", false, null));
-				  int port = ByteBuffer.wrap(zk.getData(participantPath + "/port", false, null)).getInt();
+				  int port = byteArrayToInt(zk.getData(participantPath + "/port", false, null));
 				
 				  return new Participant(name, host, port);
 			  } catch (KeeperException | InterruptedException e) {
@@ -379,23 +148,27 @@ public class Chat {
 		return currentParticipants;
 	}
 	
-	@Override
-	public String toString() {
-		return "Chat{" +
-				"id=" + id +
-				", path='" + path + '\'' +
-				", participantsPath='" + participantsPath + '\'' +
-				", messagesPath='" + messagesPath + '\'' +
-				", participants=" + Arrays.toString(participants) +
-				'}';
+	void registerFeatures(boolean firstParticipant) throws InterruptedException, KeeperException {
+		// Cadidatar-se à eleição
+		chatLeaders = new ChatLeaders(this, path + "/leaders");
+		if (firstParticipant) chatLeaders.createLeadersNode();
+		chatLeaders.applyForLeadership();
+		
+		// Registrar-se para o lock
+		chatLocks = new ChatLocks(this, path + "/locks");
+		if (firstParticipant) chatLocks.createLocksNode();
+		chatLocks.createLock();
+		
+		// Entrar no barrier
+		chatBarrier = new ChatBarrier(this, path + "/barrier");
+		if (firstParticipant) chatBarrier.createBarriersNode();
+		chatBarrier.enterBarrier(participants.length);
 	}
 	
-	private static String chatPath(int id) {
-		return "/chats/chat-" + ("0000000000" + id).substring(Integer.toString(id).length());
-	}
-	
-	private static boolean checkChatNode(String path) throws InterruptedException, KeeperException {
-		return zk.exists(path, false) != null;
+	void startProcessesThread() {
+		processesThread = new ProcessesThread(this);
+		processesThread.start();
+		zk.register(processesThread);
 	}
 	
 	static String findSmallestNode(List<String> list) {
@@ -415,36 +188,23 @@ public class Chat {
 		return nodeName;
 	}
 	
+	private static String chatPath(int id) {
+		return "/chats/chat-" + ("0000000000" + id).substring(Integer.toString(id).length());
+	}
+	
+	private static boolean checkChatNode(String path) throws InterruptedException, KeeperException {
+		return zk.exists(path, false) != null;
+	}
+	
 	static Chat fromId(Scanner scanner, int id, String joiningName) throws InterruptedException, KeeperException {
 		String path = chatPath(id);
 		if (checkChatNode(path)) {
-			int participantsCount = ByteBuffer.wrap(zk.getData(path + "/participantsCount", false, null)).getInt();
-			Participant[] currentParticipants = new Participant[participantsCount];
-			
-			AtomicReference<Participant> leader = new AtomicReference<>();
-			
-			AtomicInteger i = new AtomicInteger();
-			zk.getChildren(path + "/participants", false)
-			  .stream()
-			  .map(participantPath -> {
-				  participantPath = path + "/participants/" + participantPath;
-				  try {
-					  String name = new String(zk.getData(participantPath + "/name", false, null));
-					  String host = new String(zk.getData(participantPath + "/host", false, null));
-					  int port = ByteBuffer.wrap(zk.getData(participantPath + "/port", false, null)).getInt();
-					
-					  Participant participant = new Participant(name, host, port);
-					
-					  if (zk.exists(participantPath + "/leader", false) != null) leader.set(participant);
-					
-					  return participant;
-				  } catch (KeeperException | InterruptedException e) {
-					  e.printStackTrace();
-					  return null;
-				  }
-			  })
-			  .forEach(participant -> currentParticipants[i.getAndIncrement()] = participant);
-			return new Chat(scanner, id, path, currentParticipants, i.get(), leader.get(), new Participant(joiningName));
-		} else return null;
+			int participantsCount = byteArrayToInt(zk.getData(path + "/participantsCount", false, null));
+			return new Chat(scanner, id, path, participantsCount, new Participant(joiningName));
+		} else {
+			System.out.println("Não há um chat com o id " + id + "!");
+			Runtime.getRuntime().exit(0);
+			return null;
+		}
 	}
 }
